@@ -1,20 +1,5 @@
-const tiktokLiveModule = require('tiktok-live-connector');
+const { TikTokLiveConnection } = require('tiktok-live-connector');
 const WebSocket = require('ws');
-
-// 💡 PENCARIAN BRUTAL: Memaksa Node.js menemukan mesin penyadap TikTok
-let WebcastConnection = tiktokLiveModule.WebcastPushConnection;
-
-// Jika disembunyikan oleh Node.js, kita cari paksa dari 800+ item modulnya
-if (!WebcastConnection) {
-    const keys = Object.keys(tiktokLiveModule);
-    const foundKey = keys.find(k => k.toLowerCase().includes('webcastpush'));
-    if (foundKey) {
-        WebcastConnection = tiktokLiveModule[foundKey];
-    } else {
-        // Fallback terakhir
-        WebcastConnection = tiktokLiveModule.default?.WebcastPushConnection || tiktokLiveModule.default;
-    }
-}
 
 // Gunakan Port dinamis dari Railway
 const PORT = process.env.PORT || 8080;
@@ -38,18 +23,16 @@ wss.on('connection', (ws, req) => {
     console.log(`[CONNECT] Overlay menghubungkan akun: @${targetUsername}`);
 
     try {
-        if (!WebcastConnection) {
-            throw new Error("Gagal menemukan mesin TikTok Live Connector di server ini.");
-        }
-
-        // Jalankan penyadap
-        let tiktokLiveConnection = new WebcastConnection(targetUsername);
+        // Jalankan penyadap dengan API v2.4.0
+        const tiktokLiveConnection = new TikTokLiveConnection({
+            uniqueId: targetUsername
+        });
 
         tiktokLiveConnection.connect().then(state => {
             console.log(`[SUCCESS] 📡 Menyadap Live Room: @${targetUsername}`);
             ws.send(JSON.stringify({ type: 'system', message: `✅ Berhasil menyadap live @${targetUsername}` }));
         }).catch(err => {
-            console.error(`[ERROR] Gagal konek ke @${targetUsername}`);
+            console.error(`[ERROR] Gagal konek ke @${targetUsername}:`, err.message);
             ws.send(JSON.stringify({ type: 'error', message: `❌ Gagal konek. Pastikan @${targetUsername} sedang LIVE!` }));
         });
 
