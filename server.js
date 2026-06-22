@@ -36,8 +36,11 @@ wss.on('connection', (ws, req) => {
 
     try {
         // Jalankan penyadap dengan API v2.4.0
-        // Constructor menerima username langsung, bukan object
-        const tiktokLiveConnection = new TikTokLiveConnection(targetUsername);
+        // Constructor: new TikTokLiveConnection(uniqueId, options)
+        const tiktokLiveConnection = new TikTokLiveConnection(targetUsername, {
+            processInitialData: true,
+            fetchRoomInfoOnConnect: true
+        });
 
         tiktokLiveConnection.connect().then(state => {
             console.log(`[SUCCESS] 📡 Menyadap Live Room: @${targetUsername}`);
