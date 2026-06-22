@@ -1,21 +1,23 @@
 const tiktokLiveModule = require('tiktok-live-connector');
 const WebSocket = require('ws');
 
-// 💡 MESIN PENDETEKSI OTOMATIS: Nyari Constructor biar anti-crash di Node v22!
-let WebcastConnection;
-if (typeof tiktokLiveModule.WebcastPushConnection === 'function') {
-    WebcastConnection = tiktokLiveModule.WebcastPushConnection;
-} else if (typeof tiktokLiveModule === 'function') {
-    WebcastConnection = tiktokLiveModule;
-} else if (tiktokLiveModule.default && typeof tiktokLiveModule.default.WebcastPushConnection === 'function') {
-    WebcastConnection = tiktokLiveModule.default.WebcastPushConnection;
-} else if (tiktokLiveModule.default && typeof tiktokLiveModule.default === 'function') {
-    WebcastConnection = tiktokLiveModule.default;
-} else {
-    console.error("🚨 Gagal menemukan Constructor TikTok! Struktur modul:", Object.keys(tiktokLiveModule));
+// 💡 PENCARIAN BRUTAL: Memaksa Node.js menemukan mesin penyadap TikTok
+let WebcastConnection = tiktokLiveModule.WebcastPushConnection;
+
+// Jika disembunyikan oleh Node.js, kita cari paksa dari 800+ item modulnya
+if (!WebcastConnection) {
+    const keys = Object.keys(tiktokLiveModule);
+    const foundKey = keys.find(k => k.toLowerCase().includes('webcastpush'));
+    if (foundKey) {
+        WebcastConnection = tiktokLiveModule[foundKey];
+    } else {
+        // Fallback terakhir
+        WebcastConnection = tiktokLiveModule.default?.WebcastPushConnection || tiktokLiveModule.default;
+    }
 }
 
-const PORT = process.env.PORT || 8080; 
+// Gunakan Port dinamis dari Railway
+const PORT = process.env.PORT || 8080;
 const wss = new WebSocket.Server({ port: PORT });
 
 console.log(`🚀 Melodify TikTok Bridge Cloud berjalan di port ${PORT}`);
@@ -30,27 +32,28 @@ wss.on('connection', (ws, req) => {
         return;
     }
 
-    // Auto-clean: Hapus simbol '@' dan spasi
+    // AUTO-CLEANER: Bersihkan spasi dan simbol '@' biar TikTok nggak error
     targetUsername = targetUsername.replace('@', '').trim();
 
-    console.log(`[CONNECT] Overlay menghubungkan akun: ${targetUsername}`);
+    console.log(`[CONNECT] Overlay menghubungkan akun: @${targetUsername}`);
 
     try {
         if (!WebcastConnection) {
-            throw new Error("Modul TikTok tidak valid. Cek console log di atas.");
+            throw new Error("Gagal menemukan mesin TikTok Live Connector di server ini.");
         }
 
-        // Jalankan penyadap pakai Constructor yang sudah ditemukan
+        // Jalankan penyadap
         let tiktokLiveConnection = new WebcastConnection(targetUsername);
 
         tiktokLiveConnection.connect().then(state => {
-            console.log(`[SUCCESS] 📡 Menyadap Live Room: ${targetUsername}`);
-            ws.send(JSON.stringify({ type: 'system', message: `Berhasil menyadap live @${targetUsername}` }));
+            console.log(`[SUCCESS] 📡 Menyadap Live Room: @${targetUsername}`);
+            ws.send(JSON.stringify({ type: 'system', message: `✅ Berhasil menyadap live @${targetUsername}` }));
         }).catch(err => {
-            console.error(`[ERROR] Gagal konek ke ${targetUsername}`);
-            ws.send(JSON.stringify({ type: 'error', message: `Gagal konek ke @${targetUsername}. Pastikan sedang LIVE!` }));
+            console.error(`[ERROR] Gagal konek ke @${targetUsername}`);
+            ws.send(JSON.stringify({ type: 'error', message: `❌ Gagal konek. Pastikan @${targetUsername} sedang LIVE!` }));
         });
 
+        // TANGKAP CHAT
         tiktokLiveConnection.on('chat', data => {
             ws.send(JSON.stringify({
                 type: 'chat',
@@ -60,8 +63,8 @@ wss.on('connection', (ws, req) => {
             }));
         });
 
+        // TANGKAP GIFT (JALUR VIP)
         tiktokLiveConnection.on('gift', data => {
-            // Hindari spam gift berturut-turut
             if (data.giftType === 1 && !data.repeatEnd) return; 
             ws.send(JSON.stringify({
                 type: 'gift',
@@ -71,13 +74,14 @@ wss.on('connection', (ws, req) => {
             }));
         });
 
+        // BERSIHKAN SAAT OBS DITUTUP
         ws.on('close', () => {
-            console.log(`[DISCONNECT] Overlay ${targetUsername} terputus.`);
+            console.log(`[DISCONNECT] Overlay @${targetUsername} terputus.`);
             tiktokLiveConnection.disconnect();
         });
 
     } catch (error) {
-        console.error("🚨 Error Inisialisasi:", error.message);
-        ws.send(JSON.stringify({ type: 'error', message: 'Gagal inisialisasi penyadap TikTok.' }));
+        console.error("🚨 CRASH DICEGAH:", error.message);
+        ws.send(JSON.stringify({ type: 'error', message: `Error Sistem: ${error.message}` }));
     }
 });
