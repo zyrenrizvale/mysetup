@@ -8,11 +8,23 @@ const wss = new WebSocket.Server({ port: PORT });
 console.log(`🚀 Melodify TikTok Bridge Cloud berjalan di port ${PORT}`);
 
 wss.on('connection', (ws, req) => {
-    const url = new URL(req.url, `http://${req.headers.host}`);
-    let targetUsername = url.searchParams.get('username');
+    // Debug: log raw URL
+    console.log(`[DEBUG] Raw URL: ${req.url}`);
+    
+    let targetUsername = null;
+    
+    // Parse URL dengan fallback untuk berbagai format
+    try {
+        const url = new URL(req.url, `http://${req.headers.host}`);
+        targetUsername = url.searchParams.get('username');
+        console.log(`[DEBUG] Parsed username: ${targetUsername}`);
+    } catch (e) {
+        console.log(`[DEBUG] URL parse error: ${e.message}`);
+    }
 
     if (!targetUsername) {
-        ws.send(JSON.stringify({ type: 'error', message: 'Username TikTok tidak diberikan!' }));
+        console.log(`[ERROR] Username tidak ditemukan di query params`);
+        ws.send(JSON.stringify({ type: 'error', message: 'Username TikTok tidak diberikan! Format: ?username=pahriramd' }));
         ws.close();
         return;
     }
