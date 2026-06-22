@@ -1,4 +1,4 @@
-const { TikTokLiveConnection } = require('tiktok-live-connector');
+const { TikTokLiveConnection, WebcastEvent } = require('tiktok-live-connector');
 const WebSocket = require('ws');
 
 // Gunakan Port dinamis dari Railway
@@ -36,9 +36,8 @@ wss.on('connection', (ws, req) => {
 
     try {
         // Jalankan penyadap dengan API v2.4.0
-        const tiktokLiveConnection = new TikTokLiveConnection({
-            uniqueId: targetUsername
-        });
+        // Constructor menerima username langsung, bukan object
+        const tiktokLiveConnection = new TikTokLiveConnection(targetUsername);
 
         tiktokLiveConnection.connect().then(state => {
             console.log(`[SUCCESS] 📡 Menyadap Live Room: @${targetUsername}`);
@@ -49,23 +48,22 @@ wss.on('connection', (ws, req) => {
         });
 
         // TANGKAP CHAT
-        tiktokLiveConnection.on('chat', data => {
+        tiktokLiveConnection.on(WebcastEvent.CHAT, data => {
             ws.send(JSON.stringify({
                 type: 'chat',
-                uniqueId: data.uniqueId,
+                uniqueId: data.user.uniqueId,
                 message: data.comment,
-                profilePictureUrl: data.profilePictureUrl
+                profilePictureUrl: data.user.profilePictureUrl
             }));
         });
 
         // TANGKAP GIFT (JALUR VIP)
-        tiktokLiveConnection.on('gift', data => {
-            if (data.giftType === 1 && !data.repeatEnd) return; 
+        tiktokLiveConnection.on(WebcastEvent.GIFT, data => {
             ws.send(JSON.stringify({
                 type: 'gift',
-                uniqueId: data.uniqueId,
+                uniqueId: data.user.uniqueId,
                 giftName: data.giftName,
-                profilePictureUrl: data.profilePictureUrl
+                profilePictureUrl: data.user.profilePictureUrl
             }));
         });
 
